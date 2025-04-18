@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Slideshow Viewer</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #222;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .viewer-container {
+            flex-grow: 1;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .slide {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+        
+        .slide.active {
+            opacity: 1;
+            z-index: 1;
+        }
+        
+        .slide img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+        
+        .navigation {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            z-index: 10;
+            opacity: 0.2;
+            transition: opacity 0.3s ease;
+        }
+        
+        .navigation:hover {
+            opacity: 1;
+        }
+        
+        .nav-btn {
+            background-color: #e74c3c;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            text-decoration: none;
+            font-weight: bold;
+            min-width: 120px;
+            text-align: center;
+            font-size: 16px;
+            transition: background-color 0.2s, transform 0.1s;
+        }
+        
+        .nav-btn:hover {
+            background-color: #c0392b;
+        }
+        
+        .nav-btn:active {
+            transform: scale(0.98);
+        }
+        
+        .slide-indicator {
+            text-align: center;
+            font-weight: bold;
+            color: white;
+            font-size: 18px;
+        }
+        
+        /* For touch devices */
+        .touch-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 5;
+        }
+        
+        @media (max-width: 768px) {
+            .nav-btn {
+                min-width: 80px;
+                padding: 10px;
+                font-size: 14px;
+            }
+            
+            .navigation {
+                padding: 10px;
+            }
+        }
+        
+        /* Preloader styles */
+        .preloader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #222;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            color: white;
+            flex-direction: column;
+        }
+        
+        .loader {
+            border: 5px solid #333;
+            border-top: 5px solid #e74c3c;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        
+        .progress {
+            width: 200px;
+            background-color: #333;
+            height: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+        
+        .progress-bar {
+            height: 100%;
+            background-color: #e74c3c;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        
+        .progress-text {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #ccc;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Preloader -->
+    <div class="preloader" id="preloader">
+        <div class="loader"></div>
+        <div>Loading slides...</div>
+        <div class="progress">
+            <div class="progress-bar" id="progressBar"></div>
+        </div>
+        <div class="progress-text" id="progressText">0/0 slides loaded</div>
+    </div>
+    
+    <div class="viewer-container" id="viewerContainer">
+        <!-- Slides will be added here by JavaScript -->
+        <div class="touch-overlay" id="touchOverlay"></div>
+    </div>
+    
+    <div class="navigation">
+        <button id="prevBtn" class="nav-btn">Previous</button>
+        <div class="slide-indicator" id="slideIndicator">Slide 1 of 23</div>
+        <button id="nextBtn" class="nav-btn">Next</button>
+    </div>
+    
+    <script>
+        // Configuration
+        const totalSlides = 23;
+        const slidePrefix = 'AlexBrozAAG(1)_Part';
+        const slideSuffix = '.jpg'; // Using JPG instead of PDF
+        
+        // State
+        let currentSlide = 1;
+        let slides = [];
+        let imagesLoaded = 0;
+        
+        // DOM Elements
+        const viewerContainer = document.getElementById('viewerContainer');
+        const prevBtn = document.getElementById('prevBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        const slideIndicator = document.getElementById('slideIndicator');
+        const touchOverlay = document.getElementById('touchOverlay');
+        const preloader = document.getElementById('preloader');
+        const progressBar = document.getElementById('progressBar');
+        const progressText = document.getElementById('progressText');
+        
+        // Create slide elements
+        function createSlides() {
+            progressText.textContent = `0/${totalSlides} slides loaded`;
+            
+            for (let i = 1; i <= totalSlides; i++) {
+                const slideFileName = `${slidePrefix}${i}${slideSuffix}`;
+                
+                const slideDiv = document.createElement('div');
+                slideDiv.classList.add('slide');
+                slideDiv.id = `slide-${i}`;
+                
+                const img = document.createElement('img');
+                img.src = slideFileName;
+                img.alt = `Slide ${i}`;
+                
+                // Track image loading progress
+                img.onload = function() {
+                    imagesLoaded++;
+                    updateProgress();
+                    
+                    if (imagesLoaded === totalSlides) {
+                        finishLoading();
+                    }
+                };
+                
+                img.onerror = function() {
+                    console.error(`Failed to load image: ${slideFileName}`);
+                    imagesLoaded++;
+                    updateProgress();
+                    
+                    // Replace with error message
+                    const errorText = document.createElement('div');
+                    errorText.textContent = `Error loading slide ${i}`;
+                    errorText.style.color = 'white';
+                    errorText.style.padding = '20px';
+                    errorText.style.backgroundColor = 'rgba(231, 76, 60, 0.7)';
+                    errorText.style.borderRadius = '5px';
+                    
+                    // Remove the failed image
+                    this.remove();
+                    
+                    // Add error message
+                    slideDiv.appendChild(errorText);
+                    
+                    if (imagesLoaded === totalSlides) {
+                        finishLoading();
+                    }
+                };
+                
+                slideDiv.appendChild(img);
+                viewerContainer.appendChild(slideDiv);
+                slides.push(slideDiv);
+            }
+        }
+        
+        // Update loading progress
+        function updateProgress() {
+            const percentage = (imagesLoaded / totalSlides) * 100;
+            progressBar.style.width = `${percentage}%`;
+            progressText.textContent = `${imagesLoaded}/${totalSlides} slides loaded`;
+        }
+        
+        // Finish loading and show first slide
+        function finishLoading() {
+            setTimeout(() => {
+                preloader.style.opacity = '0';
+                setTimeout(() => {
+                    preloader.style.display = 'none';
+                    showSlide(1);
+                }, 500);
+            }, 500);
+        }
+        
+        // Show specified slide
+        function showSlide(slideNumber) {
+            // Wrap around if needed
+            if (slideNumber < 1) {
+                slideNumber = totalSlides;
+            } else if (slideNumber > totalSlides) {
+                slideNumber = 1;
+            }
+            
+            // Update current slide
+            const prevSlide = currentSlide;
+            currentSlide = slideNumber;
+            
+            // Remove active class from all slides
+            slides.forEach(slide => {
+                slide.classList.remove('active');
+            });
+            
+            // Add active class to current slide
+            slides[currentSlide - 1].classList.add('active');
+            
+            // Update slide indicator
+            slideIndicator.textContent = `Slide ${currentSlide} of ${totalSlides}`;
+        }
+        
+        // Navigation event handlers
+        prevBtn.addEventListener('click', function() {
+            showSlide(currentSlide - 1);
+        });
+        
+        nextBtn.addEventListener('click', function() {
+            showSlide(currentSlide + 1);
+        });
+        
+        // Keyboard navigation
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'ArrowLeft') {
+                showSlide(currentSlide - 1);
+            } else if (e.key === 'ArrowRight') {
+                showSlide(currentSlide + 1);
+            } else if (e.key === 'Escape') {
+                document.documentElement.requestFullscreen();
+            }
+        });
+        
+        // Touch navigation
+        let touchStartX = 0;
+        let touchEndX = 0;
+        
+        touchOverlay.addEventListener('touchstart', function(e) {
+            touchStartX = e.changedTouches[0].screenX;
+        });
+        
+        touchOverlay.addEventListener('touchend', function(e) {
+            touchEndX = e.changedTouches[0].screenX;
+            handleSwipe();
+        });
+        
+        function handleSwipe() {
+            const threshold = 50; // Minimum distance for a swipe
+            
+            if (touchEndX - touchStartX > threshold) {
+                // Swipe right (previous)
+                showSlide(currentSlide - 1);
+            } else if (touchStartX - touchEndX > threshold) {
+                // Swipe left (next)
+                showSlide(currentSlide + 1);
+            }
+        }
+        
+        // Initialize
+        createSlides();
+        
+        // Optional: Add click on slide to go to next
+        viewerContainer.addEventListener('click', function(e) {
+            // Only proceed if we clicked on the slide itself, not buttons
+            if (e.target.closest('.nav-btn') === null) {
+                const containerWidth = viewerContainer.clientWidth;
+                const clickX = e.clientX;
+                
+                if (clickX < containerWidth / 2) {
+                    showSlide(currentSlide - 1);
+                } else {
+                    showSlide(currentSlide + 1);
+                }
+            }
+        });
+    </script>
+</body>
+</html>
